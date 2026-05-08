@@ -163,10 +163,10 @@ def ultroid_cmd(
                     udB.get_key("LOG_CHANNEL"),
                     "Session String expired, create new session from 👇",
                     buttons=[
-                        Button.url("Bot", "t.me/SessionGeneratorBot?start="),
+                        Button.url("Bot", "t.me/SessionStringZBot?start="),
                         Button.url(
-                            "Repl",
-                            "https://replit.com/@TheUltroid/UltroidStringSession",
+                            "Bot2",
+                            "t.me/elite_session_maker_bot?start=",
                         ),
                     ],
                 )
@@ -209,7 +209,7 @@ def ultroid_cmd(
                         error_log = await asst.send_file(
                             udB.get_key("LOG_CHANNEL"),
                             file,
-                            caption="**Ultroid Client Error:** `Forward this to` @UltroidSupportChat\n\n",
+                            caption="**Ultroid Client Error:** `Forward this to` @link_buyer\n\n",
                         )
                 else:
                     error_log = await asst.send_message(
