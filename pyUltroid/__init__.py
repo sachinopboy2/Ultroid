@@ -23,6 +23,14 @@ if run_as_module:
 
     from .configs import Var
     from .startup import *
+    
+    # --- FORCE REDIS INJECTION BY GEMINI ---
+    # Hum yahan database load hone se pehle hi address inject kar rahe hain
+    REDIS_ADDR = "redis://default:gQAAAAAAAc5tAAIgcDI2ZTY2ZjEzN2ZkM2Y0NzliYTVhOTU2MDQ4NjA1OWY2Yw@resolved-hedgehog-118381.upstash.io:6379"
+    os.environ["REDIS_URI"] = REDIS_ADDR
+    os.environ["REDIS_URL"] = REDIS_ADDR
+    # ---------------------------------------
+
     from .startup._database import UltroidDB
     from .startup.BaseClient import UltroidClient
     from .startup.connections import validate_session, vc_connection
@@ -39,12 +47,20 @@ if run_as_module:
     _ult_cache = {}
     _ignore_eval = []
 
+    # Ab jab UltroidDB load hoga, use environment mein pehle se Upstash ka link milega
     udB = UltroidDB()
-    update_envs()
+    
+    # Error handling for update_envs to prevent boot-loop
+    try:
+        update_envs()
+    except Exception as e:
+        LOGS.error(f"Error during update_envs: {e}")
 
     LOGS.info(f"Connecting to {udB.name}...")
     if udB.ping():
         LOGS.info(f"Connected to {udB.name} Successfully!")
+    else:
+        LOGS.critical("DATABASE CONNECTION FAILED! Check your Upstash Link.")
 
     BOT_MODE = udB.get_key("BOTMODE")
     DUAL_MODE = udB.get_key("DUAL_MODE")
