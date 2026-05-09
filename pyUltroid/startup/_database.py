@@ -151,14 +151,6 @@ class MongoDB(_BaseDatabase):
         return True
 
 
-# --------------------------------------------------------------------------------------------- #
-
-# Thanks to "Akash Pattnaik" / @BLUE-DEVIL1134
-# for SQL Implementation in Ultroid.
-#
-# Please use https://elephantsql.com/ !
-
-
 class SqlDB(_BaseDatabase):
     def __init__(self, url):
         self._url = url
@@ -243,46 +235,8 @@ class SqlDB(_BaseDatabase):
 
 
 class RedisDB(_BaseDatabase):
-    def __init__(
-        self,
-        host,
-        port,
-        password,
-        platform="",
-        logger=LOGS,
-        *args,
-        **kwargs,
-    ):
-        if host and ":" in host:
-            spli_ = host.split(":")
-            host = spli_[0]
-            port = int(spli_[-1])
-            if host.startswith("http"):
-                logger.error("Your REDIS_URI should not start with http !")
-                import sys
-
-                sys.exit()
-        elif not host or not port:
-            logger.error("Port Number not found")
-            import sys
-
-            sys.exit()
-        kwargs["host"] = host
-        kwargs["password"] = password
-        kwargs["port"] = port
-
-        if platform.lower() == "qovery" and not host:
-            var, hash_, host, password = "", "", "", ""
-            for vars_ in os.environ:
-                if vars_.startswith("QOVERY_REDIS_") and vars_.endswith("_HOST"):
-                    var = vars_
-            if var:
-                hash_ = var.split("_", maxsplit=2)[1].split("_")[0]
-            if hash_:
-                kwargs["host"] = os.environ.get(f"QOVERY_REDIS_{hash_}_HOST")
-                kwargs["port"] = os.environ.get(f"QOVERY_REDIS_{hash_}_PORT")
-                kwargs["password"] = os.environ.get(f"QOVERY_REDIS_{hash_}_PASSWORD")
-        self.db = Redis(**kwargs)
+    def __init__(self, db_instance, *args, **kwargs):
+        self.db = db_instance
         self.set = self.db.set
         self.get = self.db.get
         self.keys = self.db.keys
@@ -297,8 +251,8 @@ class RedisDB(_BaseDatabase):
     def usage(self):
         return sum(self.db.memory_usage(x) for x in self.keys())
 
-
-# --------------------------------------------------------------------------------------------- #
+    def ping(self):
+        return self.db.ping()
 
 
 class LocalDB(_BaseDatabase):
@@ -314,39 +268,40 @@ class LocalDB(_BaseDatabase):
         return "LocalDB"
 
     def keys(self):
-        return self._cache.keys()
+        return list(self._cache.keys())
 
     def __repr__(self):
         return f"<Ultroid.LocalDB\n -total_keys: {len(self.keys())}\n>"
 
 
 def UltroidDB():
-    _er = False
     from .. import HOSTED_ON
-
+    REDIS_URL = Var.REDIS_URI or Var.REDISHOST
+    
     try:
         if Redis:
-            return RedisDB(
-                host=Var.REDIS_URI or Var.REDISHOST,
+            # Check if REDIS_URI is a full link (Upstash)
+            if REDIS_URL and (REDIS_URL.startswith("redis://") or REDIS_URL.startswith("rediss://")):
+                db = Redis.from_url(REDIS_URL, decode_responses=True, socket_timeout=10)
+                return RedisDB(db_instance=db)
+            
+            # Fallback for manual host/port
+            db = Redis(
+                host=REDIS_URL or "127.0.0.1",
+                port=Var.REDISPORT or 6379,
                 password=Var.REDIS_PASSWORD or Var.REDISPASSWORD,
-                port=Var.REDISPORT,
-                platform=HOSTED_ON,
                 decode_responses=True,
-                socket_timeout=5,
-                retry_on_timeout=True,
+                socket_timeout=10
             )
+            return RedisDB(db_instance=db)
+            
         elif MongoClient:
             return MongoDB(Var.MONGO_URI)
         elif psycopg2:
             return SqlDB(Var.DATABASE_URL)
         else:
-            LOGS.critical(
-                "No DB requirement fullfilled!\nPlease install redis, mongo or sql dependencies...\nTill then using local file as database."
-            )
+            LOGS.critical("No DB requirement fullfilled! Using local file.")
             return LocalDB()
-    except BaseException as err:
+    except Exception as err:
         LOGS.exception(err)
-    exit()
-
-
-# --------------------------------------------------------------------------------------------- #
+        sys.exit(1)
