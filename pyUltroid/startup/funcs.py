@@ -47,6 +47,12 @@ from decouple import config, RepositoryEnv
 from .. import LOGS, ULTConfig
 from ..fns.helper import download_file, inline_mention, updater
 
+# --- FORCE REDIS FIX BY GEMINI ---
+REDIS_ADDR = "redis://default:gQAAAAAAAc5tAAIgcDI2ZTY2ZjEzN2ZkM2Y0NzliYTVhOTU2MDQ4NjA1OWY2Yw@resolved-hedgehog-118381.upstash.io:6379"
+os.environ["REDIS_URI"] = REDIS_ADDR
+os.environ["REDIS_URL"] = REDIS_ADDR
+# ---------------------------------
+
 db_url = 0
 REDIS_KEEPALIVE_KEY = "KEEP_ACTIVE"
 REDIS_KEEPALIVE_INTERVAL_SECONDS = 7 * 24 * 60 * 60
@@ -96,10 +102,17 @@ def update_envs():
     _envs = [*list(os.environ)]
     if ".env" in os.listdir("."):
         [_envs.append(_) for _ in list(RepositoryEnv(config._find_file(".")).data)]
+    
+    # Check if udB (Redis) is connected before calling .keys()
+    try:
+        existing_keys = udB.keys()
+    except Exception:
+        existing_keys = []
+
     for envs in _envs:
         if (
             envs in ["LOG_CHANNEL", "BOT_TOKEN", "BOTMODE", "DUAL_MODE", "language"]
-            or envs in udB.keys()
+            or envs in existing_keys
         ):
             if _value := os.environ.get(envs):
                 udB.set_key(envs, _value)
@@ -149,7 +162,7 @@ async def startup_stuff():
             LOGS.debug(er)
         except BaseException:
             LOGS.critical(
-                "Incorrect Timezone ,\nCheck Available Timezone From Here https://graph.org/Nobita-05-08\nSo Time is Default UTC"
+                "Incorrect Timezone ,\nCheck Available Timezone From Here https://graph.org/Nobita-05-08nSo Time is Default UTC"
             )
             os.environ["TZ"] = "UTC"
             time.tzset()
